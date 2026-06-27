@@ -22,3 +22,8 @@ variable "allowed_ssh_cidr" {
   type    = string
   default = "0.0.0.0/0"
 }
+
+variable "ecr_repository_url" {
+  description = "ECR repository URL, e.g. 123456789.dkr.ecr.ap-southeast-3.amazonaws.com/myapp"
+  type        = string
+}

@@ -15,7 +15,7 @@ provider "aws" {
 
 module "ec2" {
     source = "../../modules/ec2"
-
+    ecr_repository_url = var.ecr_repository_url
     project            = var.project
     environment        = var.environment
     region_alias       = "jakarta"

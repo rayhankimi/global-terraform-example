@@ -93,6 +93,13 @@ resource "aws_vpc_security_group_ingress_rule" "http" {
     ip_protocol = "tcp"
 }
 
+resource "aws_vpc_security_group_egress_rule" "all" {
+  security_group_id = aws_security_group.ec2.id
+  description       = "Allow all outbound traffic"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
 
 # EC2 Instance
 # Get AMI ID (Amazon Linux in this case)
@@ -111,6 +118,30 @@ data "aws_ami" "amazon_linux" {
     }
 }
 
+# Attach role, to be able to get image from registry
+resource "aws_iam_role" "ec2" {
+  name = "${var.project}-${var.region_alias}-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecr" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_instance_profile" "ec2" {
+  name = "${var.project}-${var.region_alias}-ec2-profile"
+  role = aws_iam_role.ec2.name
+}
+
 resource "aws_instance" "app" {
     ami = data.aws_ami.amazon_linux.id
     instance_type = var.instance_type # Default is t3.micro
@@ -118,12 +149,17 @@ resource "aws_instance" "app" {
     vpc_security_group_ids = [aws_security_group.ec2.id]
     key_name = var.key_name
 
+    iam_instance_profile = aws_iam_instance_profile.ec2.name    # ECR
+
     user_data = <<-EOF
       #!/bin/bash
       dnf update -y
-      dnf install -y nginx
-      systemctl start nginx
-      systemctl enable nginx
+      dnf install -y docker
+      systemctl start docker
+      systemctl enable docker
+      aws ecr get-login-password --region ${var.region_full} | \
+      docker login --username AWS --password-stdin ${var.ecr_repository_url}
+      docker run -d -p 80:80 --name app --restart always ${var.ecr_repository_url}:latest
     EOF
 
     tags = {
