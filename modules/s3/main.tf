@@ -48,7 +48,7 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "source" {
     }
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "name" {
+resource "aws_s3_bucket_lifecycle_configuration" "source" {
     bucket = aws_s3_bucket.source.id
 
     depends_on = [ aws_s3_bucket_versioning.source ]
@@ -130,11 +130,28 @@ resource "aws_s3_bucket_intelligent_tiering_configuration" "destination" {
   
 resource "aws_s3_bucket_public_access_block" "destination" {
     provider = aws.singapore
-    bucket = aws_s3_bucket.source.id
+    bucket = aws_s3_bucket.destination.id
     block_public_acls = true
     block_public_policy = true
     ignore_public_acls = true
     restrict_public_buckets = true
+}
+
+resource "aws_iam_role" "crr" {
+  name = "${var.project}-s3-crr-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy" "crr" {
@@ -180,7 +197,7 @@ resource "aws_s3_bucket_replication_configuration" "crr" {
   bucket = aws_s3_bucket.source.id
   role   = aws_iam_role.crr.arn
 
-  depends_on = [aws_s3_bucket_versioning.source]
+  depends_on = [aws_s3_bucket_versioning.source, aws_s3_bucket_versioning.destination]
 
   rule {
     id     = "replicate-all-to-singapore"

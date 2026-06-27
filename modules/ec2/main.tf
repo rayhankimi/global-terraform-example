@@ -80,7 +80,7 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
     description = "Allow SSH"
     from_port = 22
     to_port = 22
-    cidr_ipv4 = [var.allowed_ssh_cidr]
+    cidr_ipv4 = var.allowed_ssh_cidr
     ip_protocol = "tcp"
 }
 
@@ -120,8 +120,8 @@ resource "aws_instance" "app" {
 
     user_data = <<-EOF
       #!/bin/bash
-      yum update -y
-      amazon-linux-extras install nginx1 -y
+      dnf update -y
+      dnf install -y nginx
       systemctl start nginx
       systemctl enable nginx
     EOF
