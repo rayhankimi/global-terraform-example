@@ -3,6 +3,7 @@ terraform {
     aws = {
         source = "hashicorp/aws"
         version = "~> 5.0"
+        configuration_aliases = [ aws.singapore ]  // So that modules can read aws provider in main
     }
   }
 }
@@ -10,9 +11,11 @@ terraform {
 # SOURCE RESOURCE (Jakarta)
 # ============================================================
 
+
 resource "aws_s3_bucket" "source" {
     # provider = aws.jakarta # Already default
     bucket = var.source_bucket_name
+
 
     tags = {
       Name = var.source_bucket_name
@@ -21,7 +24,6 @@ resource "aws_s3_bucket" "source" {
       Role = "Source"
       Region = "Jakarta"
     }
-  
 }
 
 resource "aws_s3_bucket_versioning" "source" {
@@ -63,6 +65,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "source" {
       expiration {
         days = 9 * 365
       }
+
+      # w/o intelligent tiering, switch class based on lifecycle
+      # transition {
+      #   storage_class = "STANDARD_IA"
+      #   days = 90
+      # }
+
+      # transition {
+      #   storage_class = "GLACIER"
+      #   days = 180
+      # }
 
       noncurrent_version_expiration {
         noncurrent_days = 9 * 365
@@ -141,7 +154,7 @@ resource "aws_iam_role" "crr" {
   name = "${var.project}-s3-crr-role"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
         Effect = "Allow"

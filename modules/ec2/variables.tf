@@ -57,3 +57,13 @@ variable "ecr_repository_url" {
   description = "ECR repository URL, e.g. 123456789.dkr.ecr.ap-southeast-3.amazonaws.com/myapp"
   type        = string
 }
+
+variable "ecr_region" {
+  description = "AWS region where the ECR repository lives (may differ from the EC2 region)"
+  type        = string
+}
+
+variable "s3_bucket_name" {
+  description = "S3 source bucket name to inject as environment variable into the app"
+  type        = string
+}

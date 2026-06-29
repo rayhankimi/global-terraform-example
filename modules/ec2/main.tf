@@ -100,6 +100,23 @@ resource "aws_vpc_security_group_egress_rule" "all" {
   ip_protocol       = "-1"
 }
 
+# Key Pair
+resource "tls_private_key" "ssh_key" {
+  algorithm = "RSA"
+  rsa_bits = 4096
+}
+
+resource "local_file" "private_key" {
+  content = tls_private_key.ssh_key.private_key_pem
+  filename = "${path.module}/${var.project}-key.pem"
+  file_permission = 0400
+}
+
+resource "aws_key_pair" "ssh_key" {
+  public_key = tls_private_key.ssh_key.public_key_openssh
+  key_name = "${var.project}-key"  
+}
+
 
 # EC2 Instance
 # Get AMI ID (Amazon Linux in this case)
@@ -137,6 +154,12 @@ resource "aws_iam_role_policy_attachment" "ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+resource "aws_iam_role_policy_attachment" "s3" {
+  role = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project}-${var.region_alias}-ec2-profile"
   role = aws_iam_role.ec2.name
@@ -147,7 +170,7 @@ resource "aws_instance" "app" {
     instance_type = var.instance_type # Default is t3.micro
     subnet_id = aws_subnet.public.id
     vpc_security_group_ids = [aws_security_group.ec2.id]
-    key_name = var.key_name
+    key_name = aws_key_pair.ssh_key.key_name
 
     iam_instance_profile = aws_iam_instance_profile.ec2.name    # ECR
 
@@ -157,9 +180,10 @@ resource "aws_instance" "app" {
       dnf install -y docker
       systemctl start docker
       systemctl enable docker
-      aws ecr get-login-password --region ${var.region_full} | \
+      aws ecr get-login-password --region ${var.ecr_region} | \
       docker login --username AWS --password-stdin ${var.ecr_repository_url}
-      docker run -d -p 80:80 --name app --restart always ${var.ecr_repository_url}:latest
+      docker run -d -p 80:8000 -e S3_BUCKET_NAME=${var.s3_bucket_name} \
+      --name app --restart always ${var.ecr_repository_url}:latest
     EOF
 
     tags = {
